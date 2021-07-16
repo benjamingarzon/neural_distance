@@ -61,11 +61,11 @@ def contrastive_loss(y_true, y_pred):
 def loop_params(params_grid, sample = None):
     params = list(product(*params_grid.values()))
     params_dicts = [dict(zip(params_grid.keys(), x)) for x in params]
+    print("Parameter combinations {}:".format(len(params_dicts)))
     if sample is not None:
         params_dicts = random.sample(params_dicts, k = sample)
         
     return(params_dicts)
-        
     
 def plot_training(H, plotPath, test = True):
     # construct a plot that plots and saves the training history
