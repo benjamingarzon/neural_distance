@@ -13,15 +13,16 @@ import logging, os, glob
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 today = date.today().isoformat()
+now = datetime.now().isoformat()
 
 class Estimator():
 
     def __init__(self, files_dir, target_col, ModelClass, params = None):
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)
-        handler = logging.FileHandler(f"logs/log-{today}.log", 'a', 'utf-8')
+        handler = logging.FileHandler(f"logs/log-{now}.log", 'a', 'utf-8')
         self.logger.addHandler(handler)
         self.files_dir = files_dir
         self.Model = ModelClass
@@ -111,10 +112,11 @@ class Estimator():
                                 self.files[(subject, label, session_test)])
                             if session_test != session_train: 
                                 scores[index].append(score)
-                            else:
-                                self.logger.info("Scores on training:{} ::: {}".format(index, score))
+                            #else:
+                            #    if score > 1.5:
+                            #        self.logger.info("Scores on training:{}, {} \n Params:{}".format(index, score, self.params))
 
         mean_score = np.mean([np.mean(x) for x in scores.values()])
-        self.logger.info("Params: {}".format(self.params))
-        self.logger.info("Mean_score: {} ".format(mean_score))
+        if mean_score > 1.1:
+            self.logger.info("Mean scores on test: {} \n Params:{}".format(mean_score, self.params))
         return(scores, mean_score)
