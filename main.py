@@ -33,7 +33,8 @@ params_list = loop_params(PARAM_GRID, sample = 200)
 score_list = Parallel(n_jobs = NUM_CORES, 
 #                      require = "sharedmem", 
                       verbose = 0)(delayed(launch_experiment) 
-                                         (FILES_DIR, TARGET_COL, SiameseNet)
+                                         (FILES_DIR, TARGET_COL, SiameseNet, 
+                                          params)
                                           for params in params_list)
 
 best_score = max(score_list)
