@@ -10,6 +10,8 @@ FILES_DIR = '/data/lv0/MotorSkill/fmriprep/analysis/roi_data'
 TARGET_COL = 'true_sequence' # 'seq_type'
 TRAIN_FILE = '/data/lv0/MotorSkill/fmriprep/analysis/roi_data/sub-lue1105_ses-5_roi_data_mask_rh_R_SPL.csv'
 TEST_FILE = '/data/lv0/MotorSkill/fmriprep/analysis/roi_data/sub-lue1105_ses-6_roi_data_mask_rh_R_SPL.csv'
+OUTPUT_DIR = '/data/lv0/MotorSkill/fmriprep/analysis/results'
+
 TEST_LABEL = ['R_SPL']
 NUM_CORES = 30
 
@@ -32,6 +34,6 @@ PARAM_GRID = {
     'embedding_dimension' : [5, 10, 15, 20],
     'loss' : ['binary_crossentropy', 'contrastive_loss'],
     'batch_size' : [32, 64],
-    'epochs' : [50]
+    'epochs' : [50, 100]
 
 }
