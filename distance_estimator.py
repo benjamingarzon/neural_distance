@@ -105,12 +105,14 @@ class Estimator():
                     
                     # now test in other sessions
                     for session_test in mysessions: # add type as well
-                        if session_test != session_train: 
+                    
                             index = (label, session_train, session_test)
                             score = model.predict_file(
                                 self.files[(subject, label, session_test)])
-                            scores[index].append(score)
-                            #self.logger.info("Scores:{} ::: {}".format(index, score))
+                            if session_test != session_train: 
+                                scores[index].append(score)
+                            else:
+                                self.logger.info("Scores on training:{} ::: {}".format(index, score))
 
         mean_score = np.mean([np.mean(x) for x in scores.values()])
         self.logger.info("Params: {}".format(self.params))
