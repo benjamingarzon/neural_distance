@@ -5,10 +5,12 @@ Created on Wed Jul 14 13:07:01 2021
 
 @author: benjamin.garzon@gmail.com
 """
-from config import FILES_DIR, TARGET_COL, TEST_LABEL, PARAM_GRID, NUM_CORES
+from config import FILES_DIR, TARGET_COL, TEST_LABEL, PARAM_GRID, NUM_CORES, \
+    OUTPUT_DIR
 from models import SiameseNet
 from distance_estimator import Estimator
 import numpy as np
+import os
 from util import loop_params
 from joblib import Parallel, delayed
 
@@ -29,7 +31,7 @@ def launch_experiment(files_dir, target_col, ModelClass, params = None):
 #print(mean_score)
 # make experiments
 
-params_list = loop_params(PARAM_GRID, sample = 200)
+params_list = loop_params(PARAM_GRID, sample = 300)
 score_list = Parallel(n_jobs = NUM_CORES, 
 #                      require = "sharedmem", 
                       verbose = 0)(delayed(launch_experiment) 
@@ -42,3 +44,8 @@ best_index = score_list.index(best_score)
 best_params = params_list[best_index]
 print(best_score)
 print(best_params)
+results = {'score_list' : score_list, 'params_list' : params_list}
+
+import pickle
+with open(os.path.join(OUTPUT_DIR, 'results.pkl'), 'wb') as output:
+    pickle.dump(results, output, pickle.HIGHEST_PROTOCOL)
