@@ -7,7 +7,7 @@ Created on Thu Jul 15 10:49:47 2021
 """
 from random import choice
 from config import TRAIN_FILE, TEST_FILE, TARGET_COL, PARAM_GRID
-from util import create_pairs, plot_embedding, loop_params
+from util import create_pairs, plot_embedding, loop_params, balance_labels
 import pandas as pd
 from models import SiameseNet
 import numpy as np 
@@ -49,8 +49,17 @@ def test_siamese():
 def test_loop_params():
     return loop_params(PARAM_GRID, sample = None)
     
-print(len(test_loop_params()))
+def test_fit_and_predict_cv():
+    filename = '/data/lv0/MotorSkill/fmriprep/analysis/roi_data/sub-lue1101_ses-4_roi_data_mask_rh_R_SPL.csv'
+    net = SiameseNet(TARGET_COL)
+    net.fit_and_predict_file_cv(filename)
 
+def test_balance_labels():
+    print(balance_labels(train_data, TARGET_COL))
+
+#print(len(test_loop_params()))
+test_fit_and_predict_cv()
+#test_balance_labels()
 #index_pairs, X_pairs, label_pairs = test_pairs()
 #net = test_siamese()
 
