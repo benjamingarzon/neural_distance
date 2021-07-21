@@ -101,15 +101,15 @@ def loop_params(params_grid, sample = None):
         params['exp_num'] = '%0.5d'%(i)        
     return(params_dicts)
 
-def distance_ratio(embeddings, index_test, label_test, plot = False):
+def distance_ratio(embeddings, index_test, label_test, plot = True):
     same, different = [] , []
     for index, (i, j) in enumerate(index_test):
         dist = euclidean_distance([embeddings[[i], :], embeddings[[j], :]]).numpy()
     
         if label_test[index] == 1: #same class
-            same.append(dist)
+            same.append(dist**2)
         else:
-            different.append(dist)
+            different.append(dist**2)
     if plot:
         plt.figure()
         plt.hist(np.array(same).flatten(), 30, color = 'r', alpha = 0.5)
