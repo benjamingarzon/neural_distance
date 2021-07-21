@@ -11,6 +11,7 @@ from util import create_pairs, plot_embedding, loop_params, balance_labels
 import pandas as pd
 from models import SiameseNet
 import numpy as np 
+import matplotlib.pyplot as plt
 
 train_data = pd.read_csv(TRAIN_FILE)
 test_data = pd.read_csv(TEST_FILE)
@@ -41,9 +42,9 @@ def test_siamese():
     
     index_train, X_pairs_train, label_train = create_pairs(X_train, y_train)
     index_test, X_pairs_test, label_test = create_pairs(X_test, y_test)
-    net = SiameseNet()
+    net = SiameseNet(TARGET_COL)
     net.build(input_shape = (X_train.shape[1]) )
-    net.fit(X_pairs_train, label_train, X_pairs_test, label_test)
+    #net.fit(X_pairs_train, label_train, X_pairs_test, label_test)
     return net
 
 def test_loop_params():
@@ -57,8 +58,14 @@ def test_fit_and_predict_cv():
 def test_balance_labels():
     print(balance_labels(train_data, TARGET_COL))
 
+
+#plt.hist(X_train.flatten())
+#print(np.std(X_train.flatten()))
+#print(np.mean(X_train.flatten()))
+
+test_siamese()
 #print(len(test_loop_params()))
-test_fit_and_predict_cv()
+#test_fit_and_predict_cv()
 #test_balance_labels()
 #index_pairs, X_pairs, label_pairs = test_pairs()
 #net = test_siamese()

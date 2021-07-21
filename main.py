@@ -14,6 +14,7 @@ import os
 from util import loop_params, plot_results
 from joblib import Parallel, delayed
 import pickle
+import random 
 
 shuffle = False
 if shuffle:
@@ -22,26 +23,34 @@ else:
     results_file = os.path.join(OUTPUT_DIR, 'results.pkl')
 
 def launch_experiment(files_dir, target_col, ModelClass, params = None, 
-                      shuffle = False):
+                      shuffle = False, return_scores = False):
 
     estimator = Estimator(files_dir, target_col, ModelClass, params, shuffle = shuffle)
     estimator.parse_files()
     # use only trainers in first wave and later sessions
     mysubjects = [x for x in estimator.subjects if 'lue11' in x ]
+    random.shuffle(mysubjects)
     selected_sessions = list(range(4, 8))
     scores, mean_score = estimator.estimate(subjects = mysubjects, labels = TEST_LABEL, 
                                 selected_sessions = selected_sessions)
     # for now aggregate across sessions
-    return mean_score
+    if return_scores:
+        return scores, mean_score
+    else:
+        return mean_score
 
-#mean_score = launch_experiment(FILES_DIR, TARGET_COL, SiameseNet)
-#print(mean_score)
 # make experiments
 
 #if __name__ == '__main__':
-launch_experiment(FILES_DIR, TARGET_COL, SiameseNet, DEFAULT_SIAMESE_PARAMS, shuffle)
+if True:                                         
 
-if False:                                         
+    mean_score = launch_experiment(FILES_DIR, 
+                               TARGET_COL, 
+                               SiameseNet, 
+                               DEFAULT_SIAMESE_PARAMS, 
+                               shuffle, 
+                               return_scores=True)
+else:
     params_list = loop_params(PARAM_GRID)
     score_list = Parallel(n_jobs = NUM_CORES, 
     #                      require = "sharedmem", 
