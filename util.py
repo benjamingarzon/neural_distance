@@ -55,7 +55,7 @@ def balance_labels(df, target_col):
     
     return df_balanced
 
-def create_pairs(X, labels, grouping_labels = None, sample = False):
+def create_pairs(X, labels, sample = False):
     """
     Find files and extract relevant info.
 
@@ -96,7 +96,37 @@ def create_pairs(X, labels, grouping_labels = None, sample = False):
     X_pairs = [X_1, X_2]
     print("Created %d pairs"%len(index_pairs))
 #    print(*label_pairs, sep = ' ')
+    return(index_pairs, X_pairs, label_pairs)
 
+def create_triplets(X, labels, sample = False):
+    index_pairs, X_pairs, label_pairs = create_pairs(X, labels)
+
+    index_triplets = []
+    
+    for index, (i, j) in enumerate(index_pairs):
+        if label_pairs[index] == 1:
+            for k, label in enumerate(labels):
+                if labels[i] != label:
+                    index_triplets.append((i, j, k))
+
+    random.shuffle(index_triplets)
+    
+    if sample is not None:
+        index_triplets = random.sample(index_triplets, k = sample)
+    X_triplets = []
+
+    for (i, j, k) in index_triplets:
+        X_triplets.append((X[i, :], X[j, :], X[k, :]))
+
+    X_1, X_2, X_3 = zip(*X_triplets)
+    X_1 = np.array(X_1)
+    X_2 = np.array(X_2)
+    X_3 = np.array(X_3)
+    X_triplets = [X_1, X_2, X_3]
+
+    print("Created %d triplets"%len(index_triplets))
+
+    return(index_triplets, X_triplets)
     
 def euclidean_distance(z):
     """
@@ -117,7 +147,10 @@ def loop_params(params_grid, sample = None):
         params['exp_num'] = '%0.5d'%(i)        
     return(params_dicts)
 
-
+def process_scores(scores):
+    pass
+    
+    
 def accuracy(X_pairs_test, label_test, model):
     predictions = model.predict([X_pairs_test[0], X_pairs_test[1]])
     acc = np.mean(label_test*(predictions > 0.5))
@@ -153,26 +186,27 @@ def metrics(embeddings, X_pairs_test, index_test, label_test, model,
         return acc, ratio
     else:
         grouping_pairs = []
-        for i, j in index_test:
+        for (i, j) in index_test:
             if grouping_labels[i] == grouping_labels[j]:
                 grouping_pairs.append(grouping_labels[i])
             else:
                 grouping_pairs.append(
-                    sorted([grouping_labels[i], grouping_labels[j]]).join('-'))
+                    ('-').join(sorted([grouping_labels[i], grouping_labels[j]])))
                
         grouping_pairs = np.array(grouping_pairs)
         grouping_classes = np.unique(grouping_pairs)
         ratios = {}
         accs = {}
         for g in grouping_classes:
-            embeddings_group =  embeddings[grouping_labels == g, :]
-            index_group = [index_test[i] for i, x in enumerate(grouping_pairs) if g == x]
-            label_group = [label_test[i] for i, x in enumerate(grouping_pairs) if g == x]
+            #embeddings_group =  embeddings[grouping_labels == g, :]
+            myslice = [i for i, x in enumerate(grouping_pairs) if g == x]
+            index_group = [index_test[i] for i in myslice]
+            label_group = np.array([label_test[i] for i in myslice])
             X_pairs_group = [
-                np.array([X_pairs_test[i, 0] for i, x in enumerate(grouping_pairs) if g == x]),
-                np.array([X_pairs_test[i, 1] for i, x in enumerate(grouping_pairs) if g == x])
+                np.array([X_pairs_test[0][i, :] for i in myslice]),
+                np.array([X_pairs_test[1][i, :] for i in myslice])
                 ]
-            ratios[g] = distance_ratio(embeddings_group, index_group, label_group)
+            ratios[g] = distance_ratio(embeddings, index_group, label_group)
             accs[g] = accuracy(X_pairs_group, label_group, model)
             
         return accs, ratios, grouping_classes
