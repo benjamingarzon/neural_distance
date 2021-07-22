@@ -7,8 +7,8 @@ Created on Thu Jul 15 10:59:30 2021
 """
 from itertools import combinations, product
 import tensorflow.keras.backend as K
-import matplotlib.pyplot as plt
 import tensorflow as tf
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn import manifold
 import pandas as pd
@@ -47,7 +47,7 @@ def balance_labels(df, target_col):
     
     return df_balanced
 
-def create_pairs(X, labels, sample = False):
+def create_pairs(X, labels, grouping_labels = None, sample = False):
     """
     Find files and extract relevant info.
 
@@ -63,32 +63,40 @@ def create_pairs(X, labels, sample = False):
     label_pairs (list) :
 
     """
-    print("Creating pairs")
     index_pairs = list(combinations(range(X.shape[0]), 2))
+    random.shuffle(index_pairs)
     label_pairs = np.array([1 * (labels[i] == labels[j]) for i, j in index_pairs ])
     if sample:
         # not implemented, select only a sample of them
         pass
-    
+#    if False: ### simluate some data easy to learn
+#        ff, _ = pd.factorize(labels)
+#        X_pairs = [(X[i, :]/500+ ff[i], X[j, :]/500 + ff[j]) for i, j in index_pairs ]
+#        X_1, X_2 = zip(*X_pairs)
+#        X_1 = np.array(X_1)
+#        X_2 = np.array(X_2)
+#        dd = np.sqrt(np.sum((X_1 - X_2)**2, axis = 1))
+#        plt.figure()
+#        plt.scatter(label_pairs, dd)
+#        plt.show()
+#    else:
     X_pairs = [(X[i, :], X[j, :]) for i, j in index_pairs ]
+
     X_1, X_2 = zip(*X_pairs)
     X_1 = np.array(X_1)
     X_2 = np.array(X_2)
     X_pairs = [X_1, X_2]
-    return(index_pairs, X_pairs, label_pairs)
+    print("Created %d pairs"%len(index_pairs))
+#    print(*label_pairs, sep = ' ')
 
+    
 def euclidean_distance(z):
-	x, y = z
-	sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)
-	return K.sqrt(K.maximum(sum_square, K.epsilon()))
-
-def contrastive_loss(y_true, y_pred):
-    y_true=tf.dtypes.cast(y_true, tf.float64)
-    y_pred=tf.dtypes.cast(y_pred, tf.float64)
-    margin = 1
-    square_pred = K.square(y_pred)
-    margin_square = K.square(K.maximum(margin - y_pred, 0))
-    return K.mean(y_true * square_pred + (1 - y_true) * margin_square)
+    """
+    Divided by num dimension to make it comparable
+    """
+    x, y = z
+    sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)/tf.dtypes.cast(x.shape[-1], tf.float32)
+    return K.sqrt(K.maximum(sum_square, K.epsilon()))
 
 def loop_params(params_grid, sample = None):
     params = list(product(*params_grid.values()))
@@ -101,7 +109,14 @@ def loop_params(params_grid, sample = None):
         params['exp_num'] = '%0.5d'%(i)        
     return(params_dicts)
 
-def distance_ratio(embeddings, index_test, label_test, plot = True):
+
+def accuracy(X_pairs_test, label_test, model):
+    predictions = model.predict([X_pairs_test[0], X_pairs_test[1]])
+    acc = np.mean(label_test*(predictions > 0.5))
+    print('Accuracy:', acc)
+    return acc 
+
+def distance_ratio(embeddings, index_test, label_test, plot = False):
     same, different = [] , []
     for index, (i, j) in enumerate(index_test):
         dist = euclidean_distance([embeddings[[i], :], embeddings[[j], :]]).numpy()
@@ -120,6 +135,39 @@ def distance_ratio(embeddings, index_test, label_test, plot = True):
     ratio = (different/same - 1)*100
     print('Distance ratio:', same, different, ratio)
     return(ratio)
+
+def metrics(embeddings, X_pairs_test, index_test, label_test, model, 
+            grouping_labels, plot = False):
+
+    if grouping_labels is None:
+        ratio = distance_ratio(embeddings, index_test, label_test)
+        acc = accuracy(X_pairs_test, label_test, model)
+        return acc, ratio
+    else:
+        grouping_pairs = []
+        for i, j in index_test:
+            if grouping_labels[i] == grouping_labels[j]:
+                grouping_pairs.append(grouping_labels[i])
+            else:
+                grouping_pairs.append(
+                    sorted([grouping_labels[i], grouping_labels[j]]).join('-'))
+               
+        grouping_pairs = np.array(grouping_pairs)
+        grouping_classes = np.unique(grouping_pairs)
+        ratios = {}
+        accs = {}
+        for g in grouping_classes:
+            embeddings_group =  embeddings[grouping_labels == g, :]
+            index_group = [index_test[i] for i, x in enumerate(grouping_pairs) if g == x]
+            label_group = [label_test[i] for i, x in enumerate(grouping_pairs) if g == x]
+            X_pairs_group = [
+                np.array([X_pairs_test[i, 0] for i, x in enumerate(grouping_pairs) if g == x]),
+                np.array([X_pairs_test[i, 1] for i, x in enumerate(grouping_pairs) if g == x])
+                ]
+            ratios[g] = distance_ratio(embeddings_group, index_group, label_group)
+            accs[g] = accuracy(X_pairs_group, label_group, model)
+            
+        return accs, ratios, grouping_classes
     
 def plot_training(H, plot_file, test = True):
     # construct a plot that plots and saves the training history
