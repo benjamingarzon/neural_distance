@@ -7,7 +7,8 @@ Created on Thu Jul 15 10:49:47 2021
 """
 from random import choice
 from config import TRAIN_FILE, TEST_FILE, TARGET_COL, PARAM_GRID
-from util import create_pairs, plot_embedding, loop_params, balance_labels
+from util import create_pairs, create_triplets, plot_embedding, loop_params, \
+    balance_labels
 import pandas as pd
 from models import SiameseNet
 import numpy as np 
@@ -35,8 +36,21 @@ def test_pairs():
 
     assert 1*(y[i] == y[j]) == label_pairs[index]
     assert len(label_pairs) == len(index_pairs)
-    
+  
     return(index_pairs, X_pairs, label_pairs)
+
+def test_triplets():
+    X = X_train
+    y = y_train
+    index_triplets, X_triplets = create_triplets(X, y, sample = 1000)
+    
+    index = choice(range(len(index_triplets)))
+    i, j, k = index_triplets[index]
+    print(y[i], '\n', y[j], '\n', y[k])
+    assert y[i] == y[j]
+    assert y[i] != y[k]
+  
+    return(index_triplets, X_triplets)
 
 def test_siamese():
     
@@ -62,8 +76,8 @@ def test_balance_labels():
 #plt.hist(X_train.flatten())
 #print(np.std(X_train.flatten()))
 #print(np.mean(X_train.flatten()))
-
-test_siamese()
+test_triplets()
+#test_siamese()
 #print(len(test_loop_params()))
 #test_fit_and_predict_cv()
 #test_balance_labels()
