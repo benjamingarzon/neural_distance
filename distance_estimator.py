@@ -15,13 +15,14 @@ import numpy as np
 from random import choice
 from collections import defaultdict
 from datetime import date, datetime
+from util import get_group
 today = date.today().isoformat()
 now = datetime.now().isoformat()
 
 class Estimator():
 
     def __init__(self, files_dir, target_col, ModelClass, params = None, 
-                 shuffle = False):
+                 shuffle = False, grouping_variable = None):
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)
         handler = logging.FileHandler(f"logs/log-{today}.log", 'a', 'utf-8')
@@ -31,7 +32,8 @@ class Estimator():
         self.target_col = target_col
         self.params = params
         self.shuffle = shuffle
-    
+        self.grouping_variable = grouping_variable
+        
     def parse_files(self):
         """
         Find files and extract relevant info.
@@ -95,6 +97,7 @@ class Estimator():
         scores = defaultdict(list) 
         for label in labels:
             for subject in subjects: # could be sampled
+                subject_group = get_group(subject)
                 mysessions = sessions[subject] if selected_sessions is None \
                     else [ x for x in sessions[subject] if x in selected_sessions ]
                     
@@ -116,7 +119,8 @@ class Estimator():
                                            self.params['exp_num']), 
                                        params = self.params,
                                        logger = self.logger,
-                                       shuffle = self.shuffle)
+                                       shuffle = self.shuffle,
+                                       grouping_variable = self.grouping_variable)
                     # ad one randomly selected test session
                     session_test = choice([ x for x in mysessions if x != session_train ])
                     train_file = self.files[(subject, label, session_train)]
@@ -128,7 +132,7 @@ class Estimator():
                     # now test in other sessions
                     for session_test in mysessions: # add type as well
                     
-                            index = (label, session_train, session_test)
+                            index = (label, subject_group, session_train, session_test)
                             
                             if session_test != session_train: 
                                 if not only_same_session:
@@ -143,9 +147,10 @@ class Estimator():
                                     self.logger.info("Scores on training:{}, {}, {} \n Params:{}".format(subject, index, scores[index], self.params))
 
                                 #if cv_score > 10:
-
-        mean_score = np.mean([np.nanmean(x) for x in scores.values()])
+        print(scores) 
+        mean_score = 0
+#        mean_score = np.mean([np.nanmean(x) for x in scores.values()])
 #        self.logger.info("Finished experiment, Params:{}".format(self.params))
-        if mean_score > 1:
-            self.logger.info("Mean scores on test: {}; Params:{}".format(mean_score, self.params))
+#        if mean_score > 1:
+#            self.logger.info("Mean scores on test: {}; Params:{}".format(mean_score, self.params))
         return(scores, mean_score)
