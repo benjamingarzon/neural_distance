@@ -6,16 +6,16 @@ Created on Wed Jul 14 13:07:01 2021
 @author: benjamin.garzon@gmail.com
 """
 from config import FILES_DIR, TARGET_COL, TEST_LABEL, PARAM_GRID, NUM_CORES, \
-    OUTPUT_DIR, DEFAULT_SIAMESE_PARAMS
+    OUTPUT_DIR, DEFAULT_SIAMESE_PARAMS, SCORES_PATH
 from models import SiameseNet
 from distance_estimator import Estimator
 import numpy as np
 import os
-from util import loop_params, plot_results
+from util import loop_params, plot_results, process_scores
 from joblib import Parallel, delayed
 import pickle
 import random 
-
+os.system('rm -r /data/lv0/MotorSkill/fmriprep/analysis/results/models/exp*')
 shuffle = False
 if shuffle:
     results_file = os.path.join(OUTPUT_DIR, 'results_shuffled.pkl')
@@ -25,11 +25,14 @@ else:
 def launch_experiment(files_dir, target_col, ModelClass, params = None, 
                       shuffle = False, return_scores = False):
 
-    estimator = Estimator(files_dir, target_col, ModelClass, params, shuffle = shuffle)
+    estimator = Estimator(files_dir, target_col, ModelClass, params, 
+                          shuffle = shuffle, 
+                          grouping_variable = 'seq_train')
+
     estimator.parse_files()
     # use only trainers in first wave and later sessions
     mysubjects = [x for x in estimator.subjects if 'lue11' in x ]
-    random.shuffle(mysubjects)
+#    random.shuffle(mysubjects)
     selected_sessions = list(range(4, 8))
     scores, mean_score = estimator.estimate(subjects = mysubjects, labels = TEST_LABEL, 
                                 selected_sessions = selected_sessions)
@@ -44,12 +47,15 @@ def launch_experiment(files_dir, target_col, ModelClass, params = None,
 #if __name__ == '__main__':
 if True:                                         
 
-    mean_score = launch_experiment(FILES_DIR, 
+    scores, mean_score = launch_experiment(FILES_DIR, 
                                TARGET_COL, 
                                SiameseNet, 
                                DEFAULT_SIAMESE_PARAMS, 
                                shuffle, 
                                return_scores=True)
+    scores_df = process_scores(scores)
+    scores_df.to_csv(SCORES_PATH)
+    
 else:
     params_list = loop_params(PARAM_GRID)
     score_list = Parallel(n_jobs = NUM_CORES, 
@@ -69,5 +75,5 @@ else:
     with open(results_file, 'wb') as output:
         pickle.dump(results, output, pickle.HIGHEST_PROTOCOL)   
         
-plot_results(results_file)
+    plot_results(results_file)
 

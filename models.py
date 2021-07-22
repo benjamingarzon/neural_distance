@@ -9,13 +9,16 @@ Created on Wed Jul 14 14:14:41 2021
 import os, logging
 import tensorflow as tf
 from tensorflow.keras.models import Model, Sequential
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Input, Dense, Dropout, Lambda, Flatten
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.layers import Input, Dense, Dropout, Lambda, Flatten, \
+    BatchNormalization
 from tensorflow.keras.callbacks import TensorBoard
 #Conv3D,GlobalAveragePooling3D, MaxPooling3D, 
-from util import euclidean_distance, contrastive_loss, plot_training, \
-    create_pairs, distance_ratio, plot_embedding, balance_labels, get_correct
-from config import DEFAULT_SIAMESE_PARAMS, PLOT_PATH, MODEL_PATH
+from losses import contrastive_loss, triplet_loss
+from util import euclidean_distance, plot_training, create_pairs, \
+    plot_embedding, balance_labels, get_correct, metrics
+from config import DEFAULT_SIAMESE_PARAMS, DEFAULT_TRIPLET_PARAMS, PLOT_PATH, \
+    MODEL_PATH
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import PredefinedSplit
@@ -28,19 +31,43 @@ class Net():
                  model_ref = None, 
                  params = None, 
                  logger = None, 
-                 shuffle = False):
+                 shuffle = False,
+                 grouping_variable = None):
         self.target_col = target_col
         self.params = params
         self.model_ref = model_ref
-        self.acc_function = distance_ratio
+        self.metrics_function = metrics
         self.logger = logger
         self.shuffle = shuffle # shuffle data to have a baseline
         self.trained = False
-        
+        self.grouping_variable = grouping_variable
+
+      
     def log(self, message):
         if self.logger:
             self.logger.info(message)
-    
+
+    def build(self, input_shape):
+            # definition 1
+        inputs = Input(input_shape)
+        x = BatchNormalization()(inputs)
+        
+        x = Dense(self.params['n1'], activation = self.params['activation'])(x)
+        if self.params['dropout'] > 0:
+            x = Dropout(self.params['dropout'])(x)
+
+        x = BatchNormalization()(x)
+
+        if self.params['n2'] > 0:
+            x = Dense(self.params['n2'], activation = self.params['activation'])(x)
+
+            if self.params['dropout'] > 0:
+                x = Dropout(self.params['dropout'])(x)
+                
+        outputs = Dense(self.params['embedding_dimension'])(x)
+        # create two equal instances
+        self.sister = Model(inputs, outputs)
+
 
     def fit(self, X_pairs_train, label_train, X_pairs_test = None, 
             label_test = None, plot = True, save_model = True):
@@ -95,7 +122,7 @@ class Net():
         train_data = balance_labels(train_data, self.target_col)
         
         y_train = train_data[self.target_col].values
-        X_train = train_data[self.feature_cols].values/self.params['scaling']
+        X_train = train_data[self.feature_cols].values
         self.trained_labels = np.unique(y_train)
 
         if self.shuffle:
@@ -114,7 +141,7 @@ class Net():
             # remove labels that were not trained and balance
             test_data = test_data.loc[test_data[self.target_col].isin(self.trained_labels)]
             test_data = balance_labels(test_data, self.target_col)
-            X_test = test_data[self.feature_cols].values/self.params['scaling']
+            X_test = test_data[self.feature_cols].values
             y_test = test_data[self.target_col].values
 
             index_test, X_pairs_test, label_test = create_pairs(X_test, y_test)
@@ -147,7 +174,7 @@ class Net():
         else: 
             self.log('%s has %d valid runs'%(data_file, len(np.unique(data.run))))
         data = balance_labels(data, self.target_col)
-        X = data[self.feature_cols].values/ self.params['scaling']
+        X = data[self.feature_cols].values
         y = data[self.target_col].values
 
         folds = PredefinedSplit(data.run)
@@ -168,7 +195,7 @@ class Net():
  
             self.fit(X_pairs_train, label_train, X_pairs_test, label_test)
             embeddings = self.predict_embedding(X_test)
-            score = self.acc_function(embeddings, index_test, label_test)
+            score = self.metrics_function(embeddings, index_test, label_test)
             scores.append(score)
             plot_file = os.path.join(PLOT_PATH,  '%s-split%i'%(self.model_ref, i)) if self.model_ref else None
             plot_embedding(embeddings, 
@@ -201,22 +228,67 @@ class Net():
         # remove labels that were not trained and balance
         test_data = test_data.loc[test_data[self.target_col].isin(self.trained_labels)]
         test_data = balance_labels(test_data, self.target_col)
-        X_test = test_data[self.feature_cols].values/ self.params['scaling']
+        X_test = test_data[self.feature_cols].values
         y_test = test_data[self.target_col].values
 
-
+        if self.grouping_variable is None:
+            grouping_labels = None
+        else:
+            grouping_labels = test_data[self.grouping_variable].values
         index_test, X_pairs_test, label_test = create_pairs(X_test, y_test)
 
         embeddings = self.predict_embedding(X_test)
 
-        plot_file = os.path.join(PLOT_PATH,  '%s'%self.model_ref) if self.model_ref else None
+        plot_file = os.path.join(PLOT_PATH, '%s'%self.model_ref) if self.model_ref else None
         plot_embedding(embeddings, 
                    y_test,
                    plot_file = plot_file)
-
-        score = self.acc_function(embeddings, index_test, label_test)
-
+        
+        score = self.metrics_function(embeddings, X_pairs_test, index_test, 
+                                      label_test, self.model, grouping_labels)
         return(score)        
+
+class TripletNet(Net):
+
+    def __init__(self, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
+        if self.params is None:
+            self.params = DEFAULT_TRIPLET_PARAMS
+        
+    def build(self, input_shape):
+        
+        super().build(input_shape)
+
+        X_1 = Input(shape=input_shape)
+        X_2 = Input(shape=input_shape)
+        X_3 = Input(shape=input_shape)
+
+        emb_1 = self.sister(X_1)
+        emb_2 = self.sister(X_2)
+        emb_3 = self.sister(X_3)
+
+        dist_pos = Lambda(euclidean_distance)([emb_1, emb_2])
+        dist_neg = Lambda(euclidean_distance)([emb_1, emb_3])
+
+        dist = Lambda(euclidean_distance)([emb_1, emb_2])
+        x = BatchNormalization()(dist)
+        outputs = Dense(1, activation="sigmoid")(x)
+        self.model = Model([X_1, X_2], outputs)
+
+        self.model = Model([X_1, X_2, X_3], outputs)
+        self.model.compile(loss=triplet_loss, 
+                           optimizer = Adam(learning_rate = self.params['learning_rate']),
+                      metrics=["accuracy"])
+
+        dist = Lambda(euclidean_distance)([emb_1, emb_2])
+        x = BatchNormalization()(dist)
+        outputs = Dense(1, activation="sigmoid")(x)
+
+        #self.model.summary()
+
+       
 
 class SiameseNet(Net):
 
@@ -233,29 +305,14 @@ class SiameseNet(Net):
 	#x = MaxPooling2D(pool_size=2)(x)
 	#x = Dropout(0.3)(x)
         
-        # definition 1
-        inputs = Input(input_shape)
-#        x = Flatten()(inputs) #??
-#        x = Lambda(scale)(inputs)
-        x = Dense(self.params['n1'], activation = self.params['activation'])(inputs)
-        if self.params['dropout'] > 0:
-            x = Dropout(self.params['dropout'])(x)
-        if self.params['n2'] > 0:
-            x = Dense(self.params['n2'], activation = self.params['activation'])(x)
-
-            if self.params['dropout'] > 0:
-                x = Dropout(self.params['dropout'])(x)
-
-        outputs = Dense(self.params['embedding_dimension'])(x)
-        # create two equal instances
-        self.sister = Model(inputs, outputs)
-        
         # definition 2
         #layers = [Dense(50, activation = 'relu'),
         #          Dense(embedding_dimension)]
         #sister = Sequential(layers)
         
         #self.sister.summary()
+        super().build(input_shape)
+
 
         X_1 = Input(shape=input_shape)
         X_2 = Input(shape=input_shape)
@@ -263,23 +320,20 @@ class SiameseNet(Net):
         emb_1 = self.sister(X_1)
         emb_2 = self.sister(X_2)
 
+        dist = Lambda(euclidean_distance)([emb_1, emb_2])
+        x = BatchNormalization()(dist)
+        outputs = Dense(1, activation="sigmoid")(x)
+        self.model = Model([X_1, X_2], outputs)
+
         if self.params['loss'] == 'binary_crossentropy': 
-            dist = Lambda(euclidean_distance)([emb_1, emb_2])
-            outputs = Dense(1, activation="sigmoid")(dist)
-            self.model = Model([X_1, X_2], outputs)
             self.model.compile(loss="binary_crossentropy", 
                                #optimizer = "adam",
                                optimizer=Adam(learning_rate = self.params['learning_rate']),
                           metrics=["accuracy"])
         else: 
-            outputs = Lambda(euclidean_distance)([emb_1, emb_2])
-            self.model = Model([X_1, X_2], outputs)
+            dist = Lambda(euclidean_distance)([emb_1, emb_2])
             self.model.compile(loss=contrastive_loss, 
                                #optimizer = "adam",
                                optimizer=Adam(learning_rate = self.params['learning_rate']),
                           metrics=["accuracy"])
 
-        #self.model.summary()
-
-    
-    

@@ -148,8 +148,20 @@ def loop_params(params_grid, sample = None):
     return(params_dicts)
 
 def process_scores(scores):
-    pass
     
+    # turn into
+    data = []
+    for score_key, score_value in scores.items():
+        for x in score_value:
+            if type(x) == dict:
+                for metrics_key, metrics_value in x.items():
+                    for train_key, train_value in metrics_value.items():
+                        data.append(score_key + (metrics_key, train_key, train_value))
+    score_df = pd.DataFrame(data, columns = ['label', 'group' ,'session_train', 
+                                           'session_test', 'metric', 'seq_train', 'value'])
+    return(score_df)
+
+
     
 def accuracy(X_pairs_test, label_test, model):
     predictions = model.predict([X_pairs_test[0], X_pairs_test[1]])
@@ -183,7 +195,8 @@ def metrics(embeddings, X_pairs_test, index_test, label_test, model,
     if grouping_labels is None:
         ratio = distance_ratio(embeddings, index_test, label_test)
         acc = accuracy(X_pairs_test, label_test, model)
-        return acc, ratio
+        metrics = {'acc': acc, 'ratio': ratio}
+        return metrics
     else:
         grouping_pairs = []
         for (i, j) in index_test:
@@ -208,8 +221,9 @@ def metrics(embeddings, X_pairs_test, index_test, label_test, model,
                 ]
             ratios[g] = distance_ratio(embeddings, index_group, label_group)
             accs[g] = accuracy(X_pairs_group, label_group, model)
-            
-        return accs, ratios, grouping_classes
+
+        metrics = {'acc': accs, 'ratio': ratios}
+        return metrics
     
 def plot_training(H, plot_file, test = True):
     # construct a plot that plots and saves the training history
@@ -287,3 +301,13 @@ def plot_results(results_file):
         title = '%s.png'%(param_x) #, param_y)
         plt.title(title)
         plt.show() #savefig(title + '.png')
+
+
+def plot_scores(scores_df):
+    import seaborn as sns
+#    plt.figure(figsize = (30, 30))
+# labels, trained / untrained / same /different / session_trained / session_/test
+    df = scores_df.loc[scores_df.metric == 'acc']
+    g = sns.FacetGrid(df,  col="session_train") #,col="group", c = "seq_train"
+    g.map(sns.boxplot, "session_test", "value")
+    
