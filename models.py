@@ -261,33 +261,28 @@ class TripletNet(Net):
         
         super().build(input_shape)
 
-        X_1 = Input(shape=input_shape)
-        X_2 = Input(shape=input_shape)
-        X_3 = Input(shape=input_shape)
+        X_anc = Input(shape=input_shape)
+        X_pos = Input(shape=input_shape)
+        X_neg = Input(shape=input_shape)
 
-        emb_1 = self.sister(X_1)
-        emb_2 = self.sister(X_2)
-        emb_3 = self.sister(X_3)
+        emb_anc = self.sister(X_anc)
+        emb_pos = self.sister(X_pos)
+        emb_neg = self.sister(X_neg)
 
-        dist_pos = Lambda(euclidean_distance)([emb_1, emb_2])
-        dist_neg = Lambda(euclidean_distance)([emb_1, emb_3])
-
-        dist = Lambda(euclidean_distance)([emb_1, emb_2])
-        x = BatchNormalization()(dist)
+        dist_pos = Lambda(euclidean_distance)([emb_anc, emb_pos])
+        dist_neg = Lambda(euclidean_distance)([emb_anc, emb_neg])
+        
+        def difference(x):
+            return(x[0] - x[1])
+        
+        dist_diff = Lambda(difference)([dist_pos, dist_neg])
+        x = BatchNormalization()(dist_diff)
         outputs = Dense(1, activation="sigmoid")(x)
-        self.model = Model([X_1, X_2], outputs)
 
-        self.model = Model([X_1, X_2, X_3], outputs)
+        self.model = Model([X_anc, X_pos, X_neg], outputs)
         self.model.compile(loss=triplet_loss, 
                            optimizer = Adam(learning_rate = self.params['learning_rate']),
                       metrics=["accuracy"])
-
-        dist = Lambda(euclidean_distance)([emb_1, emb_2])
-        x = BatchNormalization()(dist)
-        outputs = Dense(1, activation="sigmoid")(x)
-
-        #self.model.summary()
-
        
 
 class SiameseNet(Net):
@@ -327,13 +322,12 @@ class SiameseNet(Net):
 
         if self.params['loss'] == 'binary_crossentropy': 
             self.model.compile(loss="binary_crossentropy", 
-                               #optimizer = "adam",
-                               optimizer=Adam(learning_rate = self.params['learning_rate']),
-                          metrics=["accuracy"])
+                               optimizer=Adam(
+                                   learning_rate = self.params['learning_rate']),
+                               metrics=["accuracy"])
         else: 
-            dist = Lambda(euclidean_distance)([emb_1, emb_2])
             self.model.compile(loss=contrastive_loss, 
-                               #optimizer = "adam",
-                               optimizer=Adam(learning_rate = self.params['learning_rate']),
-                          metrics=["accuracy"])
+                               optimizer=Adam(
+                                   learning_rate = self.params['learning_rate']),
+                               metrics=["accuracy"])
 

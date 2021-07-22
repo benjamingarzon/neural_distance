@@ -15,7 +15,7 @@ import numpy as np
 from random import choice
 from collections import defaultdict
 from datetime import date, datetime
-from util import get_group
+from util import get_group, process_scores
 today = date.today().isoformat()
 now = datetime.now().isoformat()
 
@@ -147,10 +147,12 @@ class Estimator():
                                     self.logger.info("Scores on training:{}, {}, {} \n Params:{}".format(subject, index, scores[index], self.params))
 
                                 #if cv_score > 10:
-        print(scores) 
-        mean_score = 0
+        #print(scores) 
+        scores_df = process_scores(scores)
+
+        mean_score = scores_df.value[scores_df.metric == 'ratio'].mean()
 #        mean_score = np.mean([np.nanmean(x) for x in scores.values()])
 #        self.logger.info("Finished experiment, Params:{}".format(self.params))
 #        if mean_score > 1:
 #            self.logger.info("Mean scores on test: {}; Params:{}".format(mean_score, self.params))
-        return(scores, mean_score)
+        return(scores_df, mean_score)

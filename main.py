@@ -11,7 +11,7 @@ from models import SiameseNet
 from distance_estimator import Estimator
 import numpy as np
 import os
-from util import loop_params, plot_results, process_scores
+from util import loop_params, plot_results, plot_scores
 from joblib import Parallel, delayed
 import pickle
 import random 
@@ -45,7 +45,7 @@ def launch_experiment(files_dir, target_col, ModelClass, params = None,
 # make experiments
 
 #if __name__ == '__main__':
-if True:                                         
+if False:                                         
 
     scores, mean_score = launch_experiment(FILES_DIR, 
                                TARGET_COL, 
@@ -53,8 +53,8 @@ if True:
                                DEFAULT_SIAMESE_PARAMS, 
                                shuffle, 
                                return_scores=True)
-    scores_df = process_scores(scores)
-    scores_df.to_csv(SCORES_PATH)
+    scores.to_csv(SCORES_PATH)
+    plot_scores(scores)
     
 else:
     params_list = loop_params(PARAM_GRID)

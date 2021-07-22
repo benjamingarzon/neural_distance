@@ -52,7 +52,7 @@ PARAM_GRID = {
     'n1' : [10, 50, 100],
     'n2' : [0, 20, 50],
     'dropout' : [0, 0.2],
-    'activation' : ['relu', 'sigmoid'],# 'elu'],
+    'activation' : ['relu', 'sigmoid', 'tanh'],# 'elu'],
     'embedding_dimension' : [5, 10, 15],
     'loss' : ['contrastive_loss', 'binary_crossentropy'], 
     'batch_size' : [64], #32

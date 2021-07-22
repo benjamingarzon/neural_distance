@@ -17,8 +17,7 @@ def triplet_loss_2(anchor, positive, negative, margin = 1):
     return tf.reduce_mean(tf.maximum(dist_pos - dist_neg + margin, 0)) 
 
 
-def triplet_loss(y_true, y_pred, margin = 1):
-    dist_diff = y_pred
+def triplet_loss(y_true, dist_diff, margin = 1):
     return tf.reduce_mean(tf.maximum(dist_diff + margin, 0)) 
 
 

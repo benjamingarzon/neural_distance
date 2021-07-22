@@ -307,7 +307,7 @@ def plot_scores(scores_df):
     import seaborn as sns
 #    plt.figure(figsize = (30, 30))
 # labels, trained / untrained / same /different / session_trained / session_/test
-    df = scores_df.loc[scores_df.metric == 'acc']
-    g = sns.FacetGrid(df,  col="session_train") #,col="group", c = "seq_train"
-    g.map(sns.boxplot, "session_test", "value")
+    df = scores_df.loc[scores_df.metric == 'ratio']
+    g = sns.FacetGrid(df,  col="session_train", row = "seq_train") #,col="group", c = "seq_train"
+    g.map(sns.scatterplot, "session_test", "value")
     
