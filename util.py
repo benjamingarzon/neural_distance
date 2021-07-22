@@ -18,6 +18,14 @@ import pickle
 from itertools import product
 from config import MINCORRECT, NTYPES
 
+def get_group(subject):
+
+    if any([ 'lue%d1'%x in subject for x in range(1, 6)]): 
+        return 'Intervention'
+    else:
+        return 'Control'        
+    
+    
 def get_correct(data):
         valid_types = data.groupby(['run', 'seq_type']).iscorrect.sum()
         valid_runs = (valid_types >= MINCORRECT).groupby('run').sum() == NTYPES
