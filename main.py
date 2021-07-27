@@ -76,7 +76,6 @@ if PARAMETER_TUNING:
         max_index = min(block_index + BLOCK_SIZE, params_len)
             
         params_block = params_list[block_index:max_index]
-        block_index = block_index + BLOCK_SIZE
         score_block = Parallel(n_jobs = NUM_CORES, 
         #                      require = "sharedmem", 
                               verbose = 0)(delayed(launch_experiment) 
@@ -86,7 +85,8 @@ if PARAMETER_TUNING:
         score_list.extend(score_block)
 
         # Update results
-        results = {'score_list' : score_list, 'params_list' : params_list}
+        results = {'score_list' : score_list, 
+                   'params_list' : params_list[:max_index]}
         results['best_score'] = max(results['score_list'])
         results['best_index'] = results['score_list'].index(results['best_score'])
         results['best_params'] = results['params_list'][results['best_index']]
@@ -97,6 +97,8 @@ if PARAMETER_TUNING:
     
         with open(results_file, 'wb') as output:
             pickle.dump(results, output, pickle.HIGHEST_PROTOCOL)   
+
+        block_index = block_index + BLOCK_SIZE
 
         if max_index == params_len:
             break
