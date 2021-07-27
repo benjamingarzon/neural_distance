@@ -27,6 +27,7 @@ def get_group(subject):
     
     
 def get_correct(data):
+        data.dropna(subset = ['iscorrect'], inplace = True)
         valid_types = data.groupby(['run', 'seq_type']).iscorrect.sum()
         valid_runs = (valid_types >= MINCORRECT).groupby('run').sum() == NTYPES
         valid_runs = valid_runs.index[valid_runs]
@@ -98,23 +99,24 @@ def create_pairs(X, labels, sample = False):
 #    print(*label_pairs, sep = ' ')
     return(index_pairs, X_pairs, label_pairs)
 
-def create_triplets(X, labels, sample = False):
-    index_pairs, X_pairs, label_pairs = create_pairs(X, labels)
+def create_triplets(X, labels, sample = None):
+    #index_pairs, X_pairs, label_pairs = create_pairs(X, labels)
+    indices = range(X.shape[0])
 
-    index_triplets = []
+    index_prod = product(indices, indices, indices)
     
-    for index, (i, j) in enumerate(index_pairs):
-        if label_pairs[index] == 1:
-            for k, label in enumerate(labels):
-                if labels[i] != label:
-                    index_triplets.append((i, j, k))
+    index_triplets = []
+ 
+    for (i, j, k) in index_prod:
+        if labels[i] == labels[j] and i!=j and labels[i]!= labels[k]:
+            index_triplets.append((i, j, k))
 
     random.shuffle(index_triplets)
     
-    if sample is not None:
+    if sample is not None and sample < len(index_triplets):
         index_triplets = random.sample(index_triplets, k = sample)
+        
     X_triplets = []
-
     for (i, j, k) in index_triplets:
         X_triplets.append((X[i, :], X[j, :], X[k, :]))
 
@@ -126,7 +128,7 @@ def create_triplets(X, labels, sample = False):
 
     print("Created %d triplets"%len(index_triplets))
 
-    return(index_triplets, X_triplets)
+    return(index_triplets, X_triplets, np.zeros(len(index_triplets)))
     
 def euclidean_distance(z):
     """
@@ -135,6 +137,11 @@ def euclidean_distance(z):
     x, y = z
     sum_square = K.sum(K.square(x - y), axis=1, keepdims=True)/tf.dtypes.cast(x.shape[-1], tf.float32)
     return K.sqrt(K.maximum(sum_square, K.epsilon()))
+
+def squeeze_dist_diff(x):
+    dist_pos = euclidean_distance([x[0], x[1]])
+    dist_neg = euclidean_distance([x[0], x[2]])
+    return(tf.math.sigmoid(dist_pos - dist_neg))
 
 def loop_params(params_grid, sample = None):
     params = list(product(*params_grid.values()))
@@ -160,12 +167,17 @@ def process_scores(scores):
     score_df = pd.DataFrame(data, columns = ['label', 'group' ,'session_train', 
                                            'session_test', 'metric', 'seq_train', 'value'])
     return(score_df)
-
-
     
-def accuracy(X_pairs_test, label_test, model):
-    predictions = model.predict([X_pairs_test[0], X_pairs_test[1]])
-    acc = np.mean(label_test*(predictions > 0.5))
+def accuracy(embeddings, index_triplets):
+
+    els = np.zeros(len(index_triplets))
+    
+    for index, (i, j, k) in enumerate(index_triplets):
+        dist_pos = euclidean_distance([embeddings[[i], :], embeddings[[j], :]]).numpy()
+        dist_neg = euclidean_distance([embeddings[[i], :], embeddings[[k], :]]).numpy()
+        els[index] = dist_pos - dist_neg < 0
+
+    acc = np.mean(els)
     print('Accuracy:', acc)
     return acc 
 
@@ -189,41 +201,59 @@ def distance_ratio(embeddings, index_test, label_test, plot = False):
     print('Distance ratio:', same, different, ratio)
     return(ratio)
 
-def metrics(embeddings, X_pairs_test, index_test, label_test, model, 
-            grouping_labels, plot = False):
+def metrics(embeddings, X_test, y_test, grouping_labels, plot = False, 
+            sample_triplets = 10000):
+    
+    n_labels = len(np.unique(y_test)) 
+
+    index_pairs, X_pairs, label_pairs = create_pairs(X_test, y_test)
+    index_triplets, X_triplets, label_triplets = create_triplets(X_test, y_test, 
+                                                                 sample = sample_triplets)
 
     if grouping_labels is None:
-        ratio = distance_ratio(embeddings, index_test, label_test)
-        acc = accuracy(X_pairs_test, label_test, model)
+        ratio = distance_ratio(embeddings, index_pairs, label_pairs)
+        acc = accuracy(embeddings, index_triplets)*n_labels/4
         metrics = {'acc': acc, 'ratio': ratio}
         return metrics
     else:
         grouping_pairs = []
-        for (i, j) in index_test:
-            if grouping_labels[i] == grouping_labels[j]:
-                grouping_pairs.append(grouping_labels[i])
+        for (i, j) in index_pairs:
+             if grouping_labels[i] == grouping_labels[j]:
+                 grouping_pairs.append(grouping_labels[i])
+             else:
+                 grouping_pairs.append(
+                     ('-').join(sorted([grouping_labels[i], grouping_labels[j]])))
+
+        grouping_triplets = []
+        for (i, j, k) in index_triplets:
+            if grouping_labels[i] == grouping_labels[k]:
+                grouping_triplets.append(grouping_labels[i])
             else:
-                grouping_pairs.append(
-                    ('-').join(sorted([grouping_labels[i], grouping_labels[j]])))
-               
+                grouping_triplets.append(
+                    ('-').join(sorted([grouping_labels[i], grouping_labels[k]])))
+
         grouping_pairs = np.array(grouping_pairs)
+        grouping_triplets = np.array(grouping_triplets)
         grouping_classes = np.unique(grouping_pairs)
         ratios = {}
         accs = {}
+        
         for g in grouping_classes:
+            print(g)
             #embeddings_group =  embeddings[grouping_labels == g, :]
             myslice = [i for i, x in enumerate(grouping_pairs) if g == x]
-            index_group = [index_test[i] for i in myslice]
-            label_group = np.array([label_test[i] for i in myslice])
-            X_pairs_group = [
-                np.array([X_pairs_test[0][i, :] for i in myslice]),
-                np.array([X_pairs_test[1][i, :] for i in myslice])
-                ]
+            index_group = [index_pairs[i] for i in myslice]
+            label_group = np.array([label_pairs[i] for i in myslice])
             ratios[g] = distance_ratio(embeddings, index_group, label_group)
-            accs[g] = accuracy(X_pairs_group, label_group, model)
+
+            myslice = [i for i, x in enumerate(grouping_triplets) if g == x]
+ 
+            index_group = [index_triplets[i] for i in myslice]
+            accs[g] = accuracy(embeddings, index_group)*n_labels/4
 
         metrics = {'acc': accs, 'ratio': ratios}
         return metrics
+
     
 def plot_training(H, plot_file, test = True):
     # construct a plot that plots and saves the training history
@@ -255,25 +285,32 @@ def plot_training(H, plot_file, test = True):
     else:
         plt.show()
     
-def plot_embedding(embedding, y, plot_file):
-    n_components = 2
+def plot_embedding(embedding, y, plot_file = None):
+    n_components = 3
     n_neighbors = 10
     methods = {}
 #    methods['t-SNE'] = manifold.TSNE(n_components=n_components, init='pca',
 #                                 random_state=0)
     methods['PCA'] = PCA(n_components=n_components)
-    labels = pd.factorize(y)[0]
-#    markers = {1:'o', 2:'v', 3:'s', 4:'P', 5: '*'}
+    labels = pd.factorize(y)[0]+1
+    markers = {1:'o', 2:'v', 3:'s', 4:'P', 0: '*'}
+    colors = {1:'g', 2:'k', 3:'b', 4:'r', 0: 'y'}
     # Plot results
     for i, (labelx, method) in enumerate(methods.items()):
         Y = method.fit_transform(embedding)
-        plt.figure()
-        plt.scatter(Y[:, 0], Y[:, 1], 
-                       c = labels*10,
-                       s = 30,
-                       cmap = plt.cm.Spectral)
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        for label in np.unique(labels):
+            ax.scatter(Y[labels == label, 0], 
+                       Y[labels == label, 1], 
+                       Y[labels == label, 2], 
+                       c = colors[label],
+                       s = 30,  
+                       marker = markers[label])
+#                           cmap = plt.cm.Spectral)
         plt.title(labelx)
-    if plot_file:
+    if plot_file is not None:
         plt.savefig(plot_file + '-embed.png')
     else:
         plt.show()

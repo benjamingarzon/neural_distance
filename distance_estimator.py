@@ -139,12 +139,12 @@ class Estimator():
                                     score = model.predict_file(
                                         self.files[(subject, label, session_test)])
                                     scores[index].append(score)
-                                    self.logger.info("Scores on training:{}, {}, {} \n Params:{}".format(subject, index, scores[index], self.params))
+                                    #self.logger.info("Scores on training:{}, {}, {} \n Params:{}".format(subject, index, scores[index], self.params))
 
                             else:
                                 if only_same_session: 
                                     scores[index].append(cv_score)
-                                    self.logger.info("Scores on training:{}, {}, {} \n Params:{}".format(subject, index, scores[index], self.params))
+                                    #self.logger.info("Scores on training:{}, {}, {} \n Params:{}".format(subject, index, scores[index], self.params))
 
                                 #if cv_score > 10:
         #print(scores) 
@@ -153,6 +153,6 @@ class Estimator():
         mean_score = scores_df.value[scores_df.metric == 'ratio'].mean()
 #        mean_score = np.mean([np.nanmean(x) for x in scores.values()])
 #        self.logger.info("Finished experiment, Params:{}".format(self.params))
-#        if mean_score > 1:
-#            self.logger.info("Mean scores on test: {}; Params:{}".format(mean_score, self.params))
+        if mean_score > 1:
+            self.logger.info("Mean scores on test: {}; Params:{}".format(mean_score, self.params))
         return(scores_df, mean_score)
